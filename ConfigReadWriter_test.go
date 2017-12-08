@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 	"fmt"
+	"encoding/json"
 )
 
 type testStruct struct {
@@ -24,6 +25,10 @@ type SliceOfWrongstruct struct {
 type SliceOfTestStruct struct {
 	Test string
 	Sts []testStruct
+}
+type NestedStruct struct{
+	NestString string
+	NestStruct testStruct
 }
 
 
@@ -159,8 +164,34 @@ func TestDoWriteSliceTestStruct(t *testing.T) {
 	rw := ConfigReadWriter{&s, &trw, "ASDF"}
 
 	err := rw.DoWrite()
-	if trw.written == "{\"Sws\":[{\"NoName\":\"One\",\"WrongDescription\":\"noOne\",\"NothingSpecial\":1},{\"NoName\":\"Two\",\"WrongDescription\":\"noTwo\",\"NothingSpecial\":2}]}"{
-		t.Error("written should be set!", trw.written)
+	if err != nil {
+		t.Error("Error DoWrite: ", err)
+	}
+
+	var result SliceOfTestStruct
+	err = json.Unmarshal([]byte(trw.written), &result)
+	if err != nil {
+		t.Error("Error Unmarshal: ", err)
+	}
+	if result.Test != "testText"{
+		t.Errorf("unmarshal written doesnt return the correct value for Test \"testText\" <> %s",result.Test)
+	}
+	if err != nil {
+		t.Error("no Error expected, but was " , err)
+	}
+}
+
+func TestDoWriteSliceNestedStruct(t *testing.T) {
+	var s NestedStruct
+	s.NestString = "testText"
+	s.NestStruct = testStruct{"One","noOne", "encr1"}
+
+	trw := testReadWriter{"", "", EncryptedString, 1, 1}
+	rw := ConfigReadWriter{&s, &trw, "ASDF"}
+
+	err := rw.DoWrite()
+	if trw.written == "{\"NestString\":\"testText\",\"NestStruct\":{\"Name\":\"One\",\"Description\":\"noOne\",\"Encrypted\":\"encr1\"}}"{
+		t.Error("written should not conatin decrypted string!", trw.written)
 	}
 	if err != nil {
 		t.Error("no Error expected, but was " , err)

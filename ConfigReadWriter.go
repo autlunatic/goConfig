@@ -87,38 +87,32 @@ type doCrypting func(reflect.Value, string) bool
 
 func doCryptingForTaggedFields(structToCrypt interface{}, key string, fnCrypt doCrypting) bool {
 	unencryptedFieldFound := false
-	t := reflect.TypeOf(structToCrypt).Elem()
-	v := reflect.ValueOf(structToCrypt).Elem()
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		f := v.Field(i)
+	v := reflect.ValueOf(structToCrypt)
+	if v.Kind() == reflect.Ptr{
+		v=v.Elem()
+	}
+	if v.Kind() == reflect.Slice {
+		for i := 0; i < v.Len(); i++ {
+			unencryptedFieldFound= doCryptingForTaggedFields(v.Index(i),key,fnCrypt)
+		}
+	}
+	if v.Kind() == reflect.Struct {
+		t := v.Type()
+		for i := 0; i < t.NumField(); i++ {
+			field := t.Field(i)
+			f := v.Field(i)
 
-		if f.Kind() == reflect.Slice {
-			//r := reflect.ValueOf(f)
-			for i := 0; i < f.Len(); i++ {
-
-				if f.Index(i).Kind() == reflect.Struct {
-					v := f.Index(i)
-					t2 := f.Index(i).Type()
-					for i := 0; i < t2.NumField(); i++ {
-						field := t2.Field(i)
-						f := v.Field(i)
-						//Get the field tag value
-						if tagVal, enc := field.Tag.Lookup(EncryptedTag); enc && tagVal != "-" {
-							unencryptedFieldFound = fnCrypt(f, key)
-						}
-					}
-					//item := f.Index(i).NumField()
-					//doCryptingForTaggedFields(&item, key, fnCrypt)
+			if f.Kind() == reflect.Slice {
+				unencryptedFieldFound =doCryptingForTaggedFields(f.Interface(),key,fnCrypt)
+			} else if f.Kind()==reflect.Struct{
+				unencryptedFieldFound =doCryptingForTaggedFields(f.Addr().Interface(),key,fnCrypt)
+			} else {
+				//Get the field tag value
+				if tagVal, enc := field.Tag.Lookup(EncryptedTag); enc && tagVal != "-" {
+					unencryptedFieldFound = fnCrypt(f, key)
 				}
-			}
-		} else {
-			//Get the field tag value
-			if tagVal, enc := field.Tag.Lookup(EncryptedTag); enc && tagVal != "-" {
-				unencryptedFieldFound = fnCrypt(f, key)
 			}
 		}
 	}
-
 	return unencryptedFieldFound
 }
