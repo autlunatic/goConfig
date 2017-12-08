@@ -30,7 +30,7 @@ func (crw *ConfigReadWriter) DoRead() error {
 	if err != nil {
 		return err
 	}
-	if crw.decryptTaggedFields() {
+	if doCryptingForTaggedFields(crw.StructToReadWrite, crw.EncryptKey, doDecrypting) {
 		crw.DoWrite()
 	}
 	return err
@@ -39,7 +39,7 @@ func (crw *ConfigReadWriter) DoRead() error {
 // DoWrite encrypts tagged fields and writes it to the writer.
 // the ReadWriter is seeked to 0 beause it is optimized to write files and it should not append to the file
 func (crw *ConfigReadWriter) DoWrite() error {
-	crw.encryptTaggedFields()
+	doCryptingForTaggedFields(crw.StructToReadWrite, crw.EncryptKey, doEncrypting)
 
 	bs, err := json.Marshal(crw.StructToReadWrite)
 	if err != nil {
@@ -47,55 +47,78 @@ func (crw *ConfigReadWriter) DoWrite() error {
 	}
 
 	crw.ReadWriter.Seek(0, io.SeekStart)
-	_,err = crw.ReadWriter.Write(bs)
+	_, err = crw.ReadWriter.Write(bs)
 	if err != nil {
 		return err
 	}
 
-	crw.decryptTaggedFields()
+	doCryptingForTaggedFields(crw.StructToReadWrite, crw.EncryptKey, doDecrypting)
 
 	return err
 }
 
-func (crw *ConfigReadWriter) encryptTaggedFields() {
-	t := reflect.TypeOf(crw.StructToReadWrite).Elem()
-	v := reflect.ValueOf(crw.StructToReadWrite).Elem()
-
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		//Get the field tag value
-		if tagVal,enc := field.Tag.Lookup(EncryptedTag); enc && tagVal != "-"{
-			if !encrypting.IsEncrypted(v.Field(i).String(), crw.EncryptKey) {
-				if v.Field(i).CanSet() {
-					s, _ := encrypting.EncryptString(v.Field(i).String(), crw.EncryptKey)
-					v.Field(i).SetString(s)
-				}
+func doDecrypting(value reflect.Value, key string) bool {
+	if !encrypting.IsEncrypted(value.String(), key) {
+		return true
+	}
+	if value.CanSet() {
+		s, err := encrypting.DecryptString(value.String(), key)
+		if err != nil {
+			return false
+		}
+		value.SetString(s)
+	}
+	return false
+}
+func doEncrypting(value reflect.Value, key string) bool {
+	if !encrypting.IsEncrypted(value.String(), key) {
+		if value.CanSet() {
+			s, err := encrypting.EncryptString(value.String(), key)
+			if err != nil {
+				return false
 			}
+			value.SetString(s)
 		}
 	}
+	return false
 }
 
-func (crw *ConfigReadWriter) decryptTaggedFields() bool {
-	t := reflect.TypeOf(crw.StructToReadWrite).Elem()
-	v := reflect.ValueOf(crw.StructToReadWrite).Elem()
+type doCrypting func(reflect.Value, string) bool
+
+func doCryptingForTaggedFields(structToCrypt interface{}, key string, fnCrypt doCrypting) bool {
 	unencryptedFieldFound := false
+	t := reflect.TypeOf(structToCrypt).Elem()
+	v := reflect.ValueOf(structToCrypt).Elem()
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
-		// Get the field tag value
-		if value,enc := field.Tag.Lookup(EncryptedTag); enc && value != "-" {
-			if v.Field(i).CanSet() {
-				if !encrypting.IsEncrypted(v.Field(i).String(), crw.EncryptKey) {
-					unencryptedFieldFound = true
-					continue
+		f := v.Field(i)
+
+		if f.Kind() == reflect.Slice {
+			//r := reflect.ValueOf(f)
+			for i := 0; i < f.Len(); i++ {
+
+				if f.Index(i).Kind() == reflect.Struct {
+					v := f.Index(i)
+					t2 := f.Index(i).Type()
+					for i := 0; i < t2.NumField(); i++ {
+						field := t2.Field(i)
+						f := v.Field(i)
+						//Get the field tag value
+						if tagVal, enc := field.Tag.Lookup(EncryptedTag); enc && tagVal != "-" {
+							unencryptedFieldFound = fnCrypt(f, key)
+						}
+					}
+					//item := f.Index(i).NumField()
+					//doCryptingForTaggedFields(&item, key, fnCrypt)
 				}
-				s, err := encrypting.DecryptString(v.Field(i).String(), crw.EncryptKey)
-				if err != nil {
-					unencryptedFieldFound = true
-					continue
-				}
-				v.Field(i).SetString(s)
+			}
+		} else {
+			//Get the field tag value
+			if tagVal, enc := field.Tag.Lookup(EncryptedTag); enc && tagVal != "-" {
+				unencryptedFieldFound = fnCrypt(f, key)
 			}
 		}
 	}
+
 	return unencryptedFieldFound
 }

@@ -1,9 +1,9 @@
 package encryptedConfig
 
 import (
-	"fmt"
 	"strings"
 	"testing"
+	"fmt"
 )
 
 type testStruct struct {
@@ -17,6 +17,15 @@ type wrongStruct struct {
 	WrongDescription string
 	NothingSpecial   int
 }
+
+type SliceOfWrongstruct struct {
+	Sws []wrongStruct
+}
+type SliceOfTestStruct struct {
+	Test string
+	Sts []testStruct
+}
+
 
 type testReadWriter struct {
 	read          string
@@ -67,6 +76,10 @@ func TestDoReadDecrypted(t *testing.T) {
 	if trw.written == "" {
 		t.Error("written should be set!")
 	}
+
+	if  trw.written == DecryptedString{
+		t.Errorf("written should NOT be the same as Decrypted! %s==%s " , trw.written, DecryptedString)
+	}
 	if trw.seeked != 0 {
 		t.Error("should be seeked to 0")
 	}
@@ -116,7 +129,40 @@ func TestDoReadEncryptedToWrongStruct(t *testing.T) {
 	if err != nil {
 		t.Error("Error should be given when no JSON Parsed")
 	}
+
 	if s.WrongDescription != "" || s.NothingSpecial != 0 || s.NoName != "" {
 		t.Error("no field should be read")
+	}
+}
+func TestDoWriteSliceWrongStruct(t *testing.T) {
+	var s SliceOfWrongstruct
+	s.Sws = append(s.Sws, wrongStruct{"One","noOne", 1})
+	s.Sws = append(s.Sws, wrongStruct{"Two","noTwo", 2})
+	trw := testReadWriter{"", "", EncryptedString, 1, 1}
+	rw := ConfigReadWriter{&s, &trw, "ASDF"}
+
+	err := rw.DoWrite()
+	if trw.written != "{\"Sws\":[{\"NoName\":\"One\",\"WrongDescription\":\"noOne\",\"NothingSpecial\":1},{\"NoName\":\"Two\",\"WrongDescription\":\"noTwo\",\"NothingSpecial\":2}]}"{
+		t.Error("written should be set!", trw.written)
+	}
+	if err != nil {
+		t.Error("no Error expected, but was " , err)
+	}
+}
+func TestDoWriteSliceTestStruct(t *testing.T) {
+	var s SliceOfTestStruct
+	s.Test = "testText"
+	s.Sts = append(s.Sts, testStruct{"One","noOne", "encr1"})
+	s.Sts = append(s.Sts, testStruct{"Two","noTwo", "encr2"})
+
+	trw := testReadWriter{"", "", EncryptedString, 1, 1}
+	rw := ConfigReadWriter{&s, &trw, "ASDF"}
+
+	err := rw.DoWrite()
+	if trw.written == "{\"Sws\":[{\"NoName\":\"One\",\"WrongDescription\":\"noOne\",\"NothingSpecial\":1},{\"NoName\":\"Two\",\"WrongDescription\":\"noTwo\",\"NothingSpecial\":2}]}"{
+		t.Error("written should be set!", trw.written)
+	}
+	if err != nil {
+		t.Error("no Error expected, but was " , err)
 	}
 }
