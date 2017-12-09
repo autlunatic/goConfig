@@ -87,14 +87,17 @@ type doCrypting func(reflect.Value, string) bool
 
 func doCryptingForTaggedFields(structToCrypt interface{}, key string, fnCrypt doCrypting) bool {
 	unencryptedFieldFound := false
+	//fmt.Printf("\n\n structToCrypt: ", structToCrypt)
 	v := reflect.ValueOf(structToCrypt)
 	// if it is a Pointer get the Elem
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
+	//fmt.Println("\n   after valueof and elem(): ", v)
 	if v.Kind() == reflect.Slice {
 		for i := 0; i < v.Len(); i++ {
-			if doCryptingForTaggedFields(v.Index(i), key, fnCrypt) {
+			//fmt.Printf("\nPassing SLICE >>>>>>>>>>>>>>>>>>", v.Index(i))
+			if doCryptingForTaggedFields(v.Index(i).Addr().Interface(), key, fnCrypt) {
 				unencryptedFieldFound = true
 			}
 		}
@@ -104,11 +107,8 @@ func doCryptingForTaggedFields(structToCrypt interface{}, key string, fnCrypt do
 		for i := 0; i < t.NumField(); i++ {
 			f := v.Field(i)
 			switch f.Kind() {
-			case reflect.Slice:
-				if doCryptingForTaggedFields(f.Interface(), key, fnCrypt) {
-					unencryptedFieldFound = true
-				}
-			case reflect.Struct:
+			case reflect.Slice, reflect.Struct:
+				//fmt.Printf("\nPassing slice or struct>>>>>>>>>>>>>>>>>>", f)
 				if doCryptingForTaggedFields(f.Addr().Interface(), key, fnCrypt) {
 					unencryptedFieldFound = true
 				}

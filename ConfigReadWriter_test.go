@@ -173,6 +173,9 @@ func TestDoWriteSliceTestStruct(t *testing.T) {
 	if err != nil {
 		t.Error("Error Unmarshal: ", err)
 	}
+	if result.Sts[0].Encrypted == "encr1" {
+		t.Errorf("Encrypted field is not encrypted")
+	}
 	if result.Test != "testText"{
 		t.Errorf("unmarshal written doesnt return the correct value for Test \"testText\" <> %s",result.Test)
 	}
