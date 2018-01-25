@@ -2,17 +2,26 @@ package encryptedConfig
 
 import (
 	"encoding/json"
-	"github.com/autlunatic/goConfig/encrypting"
 	"io"
 	"reflect"
+
+	"github.com/autlunatic/goConfig/encrypting"
 )
+
+// ReadWriteSeekTruncater is mainly used as interface for files
+type ReadWriteSeekTruncater interface {
+	io.Reader
+	io.Writer
+	io.Seeker
+	Truncate(size int64) error
+}
 
 // ConfigReadWriter takes the necessary infos for the encryption
 // please take note that the values are being read to StructToReadWrite
 // so you have to pass the pointer of a struct to take effect when reading
 type ConfigReadWriter struct {
 	StructToReadWrite interface{}
-	ReadWriter        io.ReadWriteSeeker
+	ReadWriter        ReadWriteSeekTruncater
 	EncryptKey        string
 }
 
@@ -37,7 +46,7 @@ func (crw *ConfigReadWriter) DoRead() error {
 }
 
 // DoWrite encrypts tagged fields and writes it to the writer.
-// the ReadWriter is seeked to 0 beause it is optimized to write files and it should not append to the file
+// the ReadWriter is truncated to 0 beause it is optimized to write files and it should not append to the file
 func (crw *ConfigReadWriter) DoWrite() error {
 	doCryptingForTaggedFields(crw.StructToReadWrite, crw.EncryptKey, doEncrypting)
 
@@ -46,6 +55,7 @@ func (crw *ConfigReadWriter) DoWrite() error {
 		return err
 	}
 
+	crw.ReadWriter.Truncate(io.SeekStart)
 	crw.ReadWriter.Seek(0, io.SeekStart)
 	_, err = crw.ReadWriter.Write(bs)
 	if err != nil {
