@@ -50,7 +50,7 @@ func (crw *ConfigReadWriter) DoRead() error {
 func (crw *ConfigReadWriter) DoWrite() error {
 	doCryptingForTaggedFields(crw.StructToReadWrite, crw.EncryptKey, doEncrypting)
 
-	bs, err := json.Marshal(crw.StructToReadWrite)
+	bs, err := json.MarshalIndent(crw.StructToReadWrite, "", "  ")
 	if err != nil {
 		return err
 	}

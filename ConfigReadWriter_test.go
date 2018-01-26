@@ -3,6 +3,7 @@ package encryptedConfig
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -139,12 +140,12 @@ func TestDoWriteSliceWrongStruct(t *testing.T) {
 	trw := testReadWriter{"", "", EncryptedString, 0}
 	rw := ConfigReadWriter{&s, &trw, "ASDF"}
 
-	err := rw.DoWrite()
-	if trw.written != "{\"Sws\":[{\"NoName\":\"One\",\"WrongDescription\":\"noOne\",\"NothingSpecial\":1},{\"NoName\":\"Two\",\"WrongDescription\":\"noTwo\",\"NothingSpecial\":2}]}" {
-		t.Error("written should be set!", trw.written)
-	}
-	if err != nil {
-		t.Error("no Error expected, but was ", err)
+	rw.DoWrite()
+
+	var result SliceOfWrongstruct
+	json.Unmarshal([]byte(trw.written), &result)
+	if !reflect.DeepEqual(result, s) {
+		t.Errorf("read is not equal to written")
 	}
 }
 func TestDoWriteSliceTestStruct(t *testing.T) {
