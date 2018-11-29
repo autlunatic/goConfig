@@ -1,4 +1,4 @@
-package encryptedConfig
+package goConfig
 
 import (
 	"encoding/json"
